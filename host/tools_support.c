@@ -59,13 +59,6 @@
 #define MASK_MEMFREQ 0xfff
 #define SHIFT_MEMFREQ 16
 
-void do_gettimeofday(struct timeval *tv)
-{
-struct timespec64 ts;
-ktime_get_real_ts64(&ts);
-tv->tv_sec = ts.tv_sec;
-tv->tv_usec = ts.tv_nsec;
-}
 
 int
 mic_unpin_user_pages(struct page **pages, uint32_t nf_pages)
@@ -100,14 +93,15 @@ mic_pin_user_pages (void *data, struct page **pages, uint32_t len, int32_t *nf_p
 	}
 
 	// pin the user pages; use semaphores on linux for doing the same
-	down_read(&current->mm->mmap_sem);
-	*nf_pages = (int32_t)get_user_pages(current->mm, (uint64_t)data,
-			   PROT_WRITE, pages, NULL);
-// CHECK IF BROKEN
-// og ctp
-//	*nf_pages = (int32_t)get_user_pages(current, current->mm, (uint64_t)data,
-//			  nr_pages, PROT_WRITE, 1, pages, NULL);
-	up_read(&current->mm->mmap_sem);
+	/*
+	 * Original MPSS call: get_user_pages(current, current->mm, data,
+	 * nr_pages, write=1, force=1, pages, NULL).  The 5.x community port
+	 * passed current->mm as the start address and dropped nr_pages.
+	 */
+	mmap_read_lock(current->mm);
+	*nf_pages = (int32_t)get_user_pages((unsigned long)data, nr_pages,
+			   FOLL_WRITE | FOLL_FORCE, pages, NULL);
+	mmap_read_unlock(current->mm);
 
 	// compare if the no of final pages is equal to no of requested pages
 	if ((*nf_pages) < nr_pages) {
@@ -131,7 +125,7 @@ send_flash_cmd(mic_ctx_t *mic_ctx, MIC_FLASH_CMD_TYPE type, void *data, uint32_t
 	sbox_scratch2_reg_t scratch2reg = {0};
 	uint32_t ret = 0;
 	void *src;
-	struct timeval t;
+	struct timespec64 t;
 	struct flash_stat *statbuf = NULL;
 	uint64_t temp;
 	uint32_t i = 0;
@@ -325,10 +319,7 @@ send_flash_cmd(mic_ctx_t *mic_ctx, MIC_FLASH_CMD_TYPE type, void *data, uint32_t
 	case RAS_CMD_ECC_DISABLE:
 	case RAS_CMD_ECC_ENABLE:
 	case RAS_CMD_EXIT:
-//		  ktime_get_real_ts64(t);
-// CHECK IF BROKENa
-// OG CTP
-		do_gettimeofday(&t);
+		ktime_get_real_ts64(&t);
 		SBOX_WRITE(t.tv_sec, mmio_va, SBOX_SCRATCH3);
 		scratch1reg.bits.command = type;
 		SBOX_WRITE(scratch1reg.value, mmio_va, SBOX_SCRATCH1);

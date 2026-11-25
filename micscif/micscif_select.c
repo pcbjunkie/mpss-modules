@@ -43,15 +43,9 @@
 #include <linux/file.h>
 #include <linux/hrtimer.h>
 #include <linux/module.h>
-/*
-	og ctp
-*/
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/time32.h>
-/*
-	og ctp
-*/
 
 #include "mic/micscif.h"
 
@@ -79,7 +73,7 @@ struct poll_table_page {
 
 #define MAX_SLACK	(100 * NSEC_PER_MSEC)
 
-static long __estimate_accuracy(struct timespec *tv)
+static long __estimate_accuracy(struct timespec64 *tv)
 {
 	long slack;
 	int divfactor = 1000;
@@ -102,11 +96,10 @@ static long __estimate_accuracy(struct timespec *tv)
 	return slack;
 }
 
-static long estimate_accuracy(struct timespec *tv)
+static long estimate_accuracy(struct timespec64 *tv)
 {
 	unsigned long ret;
-	struct timespec64 now64, tv64;
-	struct timespec now32;
+	struct timespec64 now64;
 
 	/*
 	 * Realtime tasks get a slack of 0 for obvious reasons.
@@ -116,12 +109,9 @@ static long estimate_accuracy(struct timespec *tv)
 		return 0;
 
 	ktime_get_ts64(&now64);
-	tv64 = timespec_to_timespec64(*tv);
+	now64 = timespec64_sub(*tv, now64);
 
-	now64 = timespec64_sub(tv64, now64);
-	now32 = timespec64_to_timespec(now64);
-
-	ret = __estimate_accuracy(&now32);
+	ret = __estimate_accuracy(&now64);
 	if (ret < current->timer_slack_ns)
 		return current->timer_slack_ns;
 	return ret;
@@ -329,7 +319,7 @@ static inline unsigned int do_pollfd(struct scif_pollepd *pollfd, poll_table *pw
 }
 
 static int do_poll(unsigned int nfds,  struct scif_pollepd *ufds,
-		   struct poll_wqueues *wait, struct timespec *end_time)
+		   struct poll_wqueues *wait, struct timespec64 *end_time)
 {
 	poll_table* pt = &wait->pt;
 	ktime_t expire, *to = NULL;
@@ -378,7 +368,7 @@ static int do_poll(unsigned int nfds,  struct scif_pollepd *ufds,
 		 * pointer to the expiry value.
 		 */
 		if (end_time && !to) {
-			expire = timespec_to_ktime(*end_time);
+			expire = timespec64_to_ktime(*end_time);
 			to = &expire;
 		}
 
@@ -389,7 +379,7 @@ static int do_poll(unsigned int nfds,  struct scif_pollepd *ufds,
 }
 
 static int do_scif_poll(struct scif_pollepd *ufds, unsigned int nfds,
-		struct timespec *end_time)
+		struct timespec64 *end_time)
 {
 	struct poll_wqueues table;
  	int epdcount;
@@ -405,23 +395,18 @@ static int do_scif_poll(struct scif_pollepd *ufds, unsigned int nfds,
  * Add two timespec values and do a safety check for overflow.
  * It's assumed that both values are valid (>= 0)
  */
-static struct timespec scif_timespec_add_safe(const struct timespec lhs,
-				  const struct timespec rhs)
+static struct timespec64 scif_timespec_add_safe(const struct timespec64 lhs,
+				  const struct timespec64 rhs)
 {
-	struct timespec64 res64, lhs64, rhs64;
-	struct timespec res32;
+	struct timespec64 res64;
 
-	rhs64 = timespec_to_timespec64(rhs);
-	lhs64 = timespec_to_timespec64(lhs);
+	set_normalized_timespec64(&res64, lhs.tv_sec + rhs.tv_sec,
+				lhs.tv_nsec + rhs.tv_nsec);
 
-	set_normalized_timespec64(&res64, lhs64.tv_sec + rhs64.tv_sec,
-				lhs64.tv_nsec + rhs64.tv_nsec);
+	if (res64.tv_sec < lhs.tv_sec || res64.tv_sec < rhs.tv_sec)
+		res64.tv_sec = TIME64_MAX;
 
-	if (res64.tv_sec < lhs64.tv_sec || res64.tv_sec < rhs64.tv_sec)
-		res64.tv_sec = TIME_T_MAX;
-
-	res32 = timespec64_to_timespec(res64);
-	return res32;
+	return res64;
 }
 /**
  * poll_select_set_timeout - helper function to setup the timeout value
@@ -434,18 +419,18 @@ static struct timespec scif_timespec_add_safe(const struct timespec lhs,
  *
  * Returns -EINVAL if sec/nsec are not normalized. Otherwise 0.
  */
-static int scif_poll_select_set_timeout(struct timespec *to, long sec, long nsec)
+static int scif_poll_select_set_timeout(struct timespec64 *to, long sec, long nsec)
 {
-	struct timespec ts = {.tv_sec = sec, .tv_nsec = nsec};
+	struct timespec64 ts = {.tv_sec = sec, .tv_nsec = nsec};
 
-	if (!timespec_valid(&ts))
+	if (!timespec64_valid(&ts))
 		return -EINVAL;
 
 	/* Optimize for the zero timeout value here */
 	if (!sec && !nsec) {
 		to->tv_sec = to->tv_nsec = 0;
 	} else {
-		ktime_get_ts(to);
+		ktime_get_ts64(to);
 		*to = scif_timespec_add_safe(*to, ts);
 	}
 	return 0;
@@ -453,7 +438,7 @@ static int scif_poll_select_set_timeout(struct timespec *to, long sec, long nsec
 
 int scif_poll(struct scif_pollepd *ufds, unsigned int nfds, long timeout_msecs)
 {
-	struct timespec end_time, *to = NULL;
+	struct timespec64 end_time, *to = NULL;
 	if (timeout_msecs >= 0) {
 		to = &end_time;
 		scif_poll_select_set_timeout(to, timeout_msecs / MSEC_PER_SEC,

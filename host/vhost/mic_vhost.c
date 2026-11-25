@@ -73,7 +73,6 @@ static void vhost_poll_func(struct file *file, wait_queue_head_t *wqh,
 	add_wait_queue(wqh, &poll->wait);
 }
 
-//static int vhost_poll_wakeup(wait_queue_t *wait, unsigned mode, int sync,
 static int vhost_poll_wakeup(wait_queue_entry_t *wait, unsigned mode, int sync,
 			     void *key)
 {
@@ -99,7 +98,6 @@ static void vhost_work_init(struct vhost_work *work, vhost_work_fn_t fn)
 void vhost_poll_init(struct vhost_poll *poll, vhost_work_fn_t fn,
 		     unsigned long mask, struct vhost_dev *dev)
 {
-//	init_waitqueue_func_entry(&poll->wait, vhost_poll_queue);
 	init_waitqueue_func_entry(&poll->wait, vhost_poll_wakeup);
 	init_poll_funcptr(&poll->table, vhost_poll_func);
 	poll->mask = mask;

@@ -51,6 +51,7 @@ subdir-ccflags-$(not-$(CONFIG_X86_MICPCI)) += -DHOST -DUSE_VCONSOLE
 
 # always set? what's this thing's purpose?
 subdir-ccflags-y += -D__LINUX_GPL__ -D_MODULE_SCIF_
+subdir-ccflags-y += -include $(src)/include/mic/compat_linux6.h
 
 subdir-ccflags-y += -I$(M)/include
 

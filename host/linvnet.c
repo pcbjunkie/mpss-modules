@@ -76,7 +76,7 @@ micveth_set_address(struct net_device *dev, void *p)
 	if (!is_valid_ether_addr(sa->sa_data))
 		return -EADDRNOTAVAIL;
 
-	memcpy(dev->dev_addr, sa->sa_data, ETH_ALEN);
+	eth_hw_addr_set(dev, sa->sa_data);
 	return 0;
 }
 
@@ -225,15 +225,16 @@ micveth_setup(struct net_device *dev)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4,11,9))
 	dev->destructor = free_netdev;
 #else
-	dev->needs_free_netdev = false;
-	dev->priv_destructor = free_netdev;
+	/* 4.12+: let the core free the netdev; priv_destructor = free_netdev
+	 * would be followed by a read of the freed dev in netdev_run_todo() */
+	dev->needs_free_netdev = true;
 #endif
 
 	/* Fill in device structure with ethernet-generic values. */
 	dev->mtu = (MICVETH_MAX_PACKET_SIZE);
 	dev->tx_queue_len = 0;
 	dev->flags &= ~IFF_MULTICAST;
-	random_ether_addr(dev->dev_addr);
+	eth_hw_addr_random(dev);
 }
 
 static int
@@ -425,7 +426,6 @@ micveth_exit_int(void)
 			packet = &veth_info->vi_rx_desc[idx];
 #if WA_UNMAP_AT_RMMOD
 			mic_ctx_unmap_single(veth_to_ctx(veth_info), packet->pd_phys, packet->pd_skb->len);
-	printk("mic: CTP micveth_start_int init ")
 #endif
 			kfree_skb(packet->pd_skb);
 		}
@@ -438,7 +438,6 @@ micveth_exit_int(void)
 static int
 micveth_start_int(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP micveth_start_int init ");
 	micveth_info_t *veth_info = &micveth.lv_info[mic_ctx->bi_id];
 
 	// Eventuall (very soon) most of the descriptor allocation for a board will be done here
@@ -471,12 +470,9 @@ micveth_start_int(mic_ctx_t *mic_ctx)
 		INIT_WORK(&veth_info->vi_bh, micvnet_intr_bh_handler);
 
 		// Install interrupt handler on doorbell 3
-		printk("mic: CTP micveth_start_int mic_reg_irqhandler start");
 		mic_reg_irqhandler(mic_ctx, 3, "Host DoorBell 3",
 				   micvnet_host_doorbell_intr_handler);
-		printk("mic: CTP micveth_start_int mic_reg_irqhandler end");
 	}
-	printk("mic: CTP micveth_start_int done");
 
 	return 0;
 }

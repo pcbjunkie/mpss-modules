@@ -51,7 +51,6 @@
 #include <linux/slab.h>
 #include <linux/highmem.h>
 #include <linux/memblock.h>
-//#include <linux/bootmem.h>
 #include <linux/init.h>
 #include <linux/crash_dump.h>
 #include <linux/list.h>
@@ -296,8 +295,8 @@ static ssize_t read_vmcore(struct file *file, char __user *buffer,
 	return acc;
 }
 
-static const struct file_operations proc_vmcore_operations = {
-	.read		= read_vmcore,
+static const struct proc_ops proc_vmcore_operations = {
+	.proc_read		= read_vmcore,
 };
 
 static struct vmcore* get_new_element(void)

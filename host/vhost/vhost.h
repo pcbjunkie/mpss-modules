@@ -46,7 +46,6 @@ struct vhost_poll {
 	poll_table                table;
 	wait_queue_head_t        *wqh;
 	wait_queue_entry_t              wait;
-//	wait_queue_t              wait;
 	struct vhost_work	  work;
 	unsigned long		  mask;
 	struct vhost_dev	 *dev;
@@ -252,7 +251,6 @@ static inline int vhost_has_feature(struct vhost_dev *dev, int bit)
 	unsigned acked_features = rcu_dereference_index_check(dev->acked_features, rcu_read_lock_held());
 #else
 	unsigned acked_features = __rcu_dereference_index_check(dev->acked_features, rcu_read_lock_held());
-//	unsigned acked_features = __rcu_dereference_check(dev->acked_features, rcu_read_lock_held());
 #endif
 #endif
 	return acked_features & (1 << bit);

@@ -823,11 +823,17 @@ error:
 
 #if !defined(WINDOWS) && !defined(CONFIG_PREEMPT)
 static int softlockup_threshold = 60;
-//static void avert_softlockup(unsigned long data)
-// OG CTP
-static void avert_softlockup(struct timer_list *timer)
+/* timer_list callbacks no longer take a data argument (4.15+) */
+struct scif_softlockup_timer {
+	struct timer_list timer;
+	unsigned long fired;
+};
+
+static void avert_softlockup(struct timer_list *t)
 {
-	*(struct timer_list *) timer = *(struct timer_list *) 1;
+	struct scif_softlockup_timer *st = from_timer(st, t, timer);
+
+	WRITE_ONCE(st->fired, 1);
 }
 
 /*
@@ -839,21 +845,25 @@ static void avert_softlockup(struct timer_list *timer)
  * timers are run at softirq context)
  *
  */
-//static inline void add_softlockup_timer(struct timer_list *timer, unsigned long *data)
-static inline void add_softlockup_timer(struct timer_list *timer)
+static inline void init_softlockup_timer(struct scif_softlockup_timer *st)
 {
-	// CTP OG
-	timer_setup(timer, avert_softlockup, 0);
-//	timer->expires = jiffies + usecs_to_jiffies(softlockup_threshold * 1000000 / 3);
-//	add_timer(timer);
+	st->fired = 0;
+	timer_setup_on_stack(&st->timer, avert_softlockup, 0);
 }
 
-static inline void del_softlockup_timer(struct timer_list *timer)
+static inline void add_softlockup_timer(struct scif_softlockup_timer *st)
+{
+	mod_timer(&st->timer,
+		  jiffies + usecs_to_jiffies(softlockup_threshold * 1000000 / 3));
+}
+
+static inline void del_softlockup_timer(struct scif_softlockup_timer *st)
 {
 	/* We need delete synchronously since the variable being touched by
 	 * timer interrupt is on the stack
 	 */
-	del_timer_sync(timer);
+	del_timer_sync(&st->timer);
+	destroy_timer_on_stack(&st->timer);
 }
 #endif
 
@@ -877,11 +887,9 @@ int micscif_rma_list_cpu_copy(struct mic_copy_work *work)
     uint64_t src_start_offset, dst_start_offset;
 	int ret = 0;
 #if !defined(WINDOWS) && !defined(CONFIG_PREEMPT)
-	unsigned long timer_fired = 0;
-	struct timer_list timer;
+	struct scif_softlockup_timer timer;
 	int cpu = smp_processor_id();
-	// OG CTP BROKEN IFX
-//	add_softlockup_timer(&timer, &timer_fired);
+	init_softlockup_timer(&timer);
 	add_softlockup_timer(&timer);
 #endif
 
@@ -894,14 +902,12 @@ int micscif_rma_list_cpu_copy(struct mic_copy_work *work)
 		/* Ideally we should call schedule only if we didn't sleep
 		 * in between. But there is no way to know that.
 		 */
-		if (timer_fired) {
-			timer_fired = 0;
+		if (READ_ONCE(timer.fired)) {
+			timer.fired = 0;
 			if (smp_processor_id() == cpu)
 				touch_softlockup_watchdog();
 			else
 				cpu = smp_processor_id();
-			// OG CTP BROEN FIX
-//			add_softlockup_timer(&timer, &timer_fired);
 			add_softlockup_timer(&timer);
 		}
 #endif

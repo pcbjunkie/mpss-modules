@@ -129,11 +129,11 @@ scif_ep_open(struct inode *inode, struct file *file)
 	return single_open(file, scif_ep_show, NULL);
 }
 
-struct file_operations scif_ep_fops = {
-	.open		= scif_ep_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops scif_ep_fops = {
+	.proc_open		= scif_ep_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
@@ -231,11 +231,11 @@ scif_rma_window_open(struct inode *inode, struct file *file)
 	return single_open(file, scif_rma_window_show, NULL);
 }
 
-struct file_operations scif_rma_window_fops = {
-	.open		= scif_rma_window_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops scif_rma_window_fops = {
+	.proc_open		= scif_rma_window_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 static int
@@ -267,11 +267,11 @@ scif_rma_xfer_open(struct inode *inode, struct file *file)
 	return single_open(file, scif_rma_xfer_show, NULL);
 }
 
-struct file_operations scif_rma_xfer_fops = {
-	.open		= scif_rma_xfer_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops scif_rma_xfer_fops = {
+	.proc_open		= scif_rma_xfer_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 static int
@@ -304,11 +304,11 @@ scif_dev_open(struct inode *inode, struct file *file)
 	return single_open(file, scif_dev_show, NULL);
 }
 
-struct file_operations scif_dev_fops = {
-	.open		= scif_dev_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops scif_dev_fops = {
+	.proc_open		= scif_dev_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 static int
@@ -349,11 +349,11 @@ scif_debug_open(struct inode *inode, struct file *file)
 	return single_open(file, scif_debug_show, NULL);
 }
 
-struct file_operations scif_debug_fops = {
-	.open		= scif_debug_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops scif_debug_fops = {
+	.proc_open		= scif_debug_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 static int
@@ -378,11 +378,11 @@ scif_suspend_open(struct inode *inode, struct file *file)
 	return single_open(file, scif_suspend_show, NULL);
 }
 
-struct file_operations scif_suspend_fops = {
-	.open		= scif_suspend_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops scif_suspend_fops = {
+	.proc_open		= scif_suspend_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 static int
@@ -398,11 +398,11 @@ scif_cache_limit_open(struct inode *inode, struct file *file)
 	return single_open(file, scif_cache_limit_show, NULL);
 }
 
-struct file_operations scif_cache_limit_fops = {
-	.open		= scif_cache_limit_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops scif_cache_limit_fops = {
+	.proc_open		= scif_cache_limit_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 #else // LINUX VERSION 3.10

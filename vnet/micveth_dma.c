@@ -847,7 +847,7 @@ micvnet_set_address(struct net_device *dev, void *p)
 	if (!is_valid_ether_addr(sa->sa_data))
 		return -EADDRNOTAVAIL;
 
-	memcpy(dev->dev_addr, sa->sa_data, ETH_ALEN);
+	eth_hw_addr_set(dev, sa->sa_data);
 	return 0;
 }
 
@@ -890,14 +890,18 @@ micvnet_setmac_from_serial(struct net_device *dev)
 {
 	struct micvnet_info *vni = (struct micvnet_info *)dev->ml_priv;
 	char serialnum[17];
+	u8 addr[ETH_ALEN];
 	int err;
 	
 	mic_get_serial_from_dbox(vni, serialnum);
 #ifdef HOST
-	err = mic_get_mac_from_serial(serialnum, dev->dev_addr, 1);
+	err = mic_get_mac_from_serial(serialnum, addr, 1);
 #else
-	err = mic_get_mac_from_serial(serialnum, dev->dev_addr, 0);
+	err = mic_get_mac_from_serial(serialnum, addr, 0);
 #endif
+	/* dev->dev_addr is read-only since 5.17 */
+	if (!err)
+		eth_hw_addr_set(dev, addr);
 	return err;
 }
 
@@ -920,8 +924,7 @@ micvnet_setup(struct net_device *dev)
 
 	/* Initialize the device structure. */
 	dev->netdev_ops = &micvnet_netdev_ops;
-//	dev->destructor = free_netdev;
-	dev->priv_destructor = free_netdev;
+	dev->needs_free_netdev = true;
 
 	/* Fill in device structure with ethernet-generic values. */
 	dev->mtu = MICVNET_MAX_MTU;
@@ -941,7 +944,6 @@ micvnet_init_hw_regs(struct micvnet_info *vnet_info)
 {
 #ifdef HOST
 	mic_ctx_t *mic_ctx = vnet_info->mic_ctx;
-	printk("mic: micvnet_init_hw_regs host init");
 
 	vnet_info->vi_pdev = mic_ctx->bi_pdev;
 	vnet_info->vi_sbox = (uint8_t *)((unsigned long) mic_ctx->mmio.va +
@@ -950,7 +952,6 @@ micvnet_init_hw_regs(struct micvnet_info *vnet_info)
 		= (uint32_t *)((unsigned long)mic_ctx->mmio.va +
 			       HOST_SBOX_BASE_ADDRESS + SBOX_SCRATCH14);
 #else
-	printk("mic: micvnet_init_hw_regs target init");
 	vnet_info->vi_sbox = ioremap_nocache(SBOX_BASE, SBOX_MMIO_LENGTH);
 	vnet_info->vi_dbox = ioremap_nocache(DBOX_BASE, SBOX_MMIO_LENGTH);
 	if (!vnet_info->vi_sbox) {
@@ -978,7 +979,6 @@ micvnet_init_interrupts(struct micvnet_info *vnet_info)
 	mic_ctx_t *mic_ctx = vnet_info->mic_ctx;
 	int ret = 0;
 
-	printk("mic: micvnet_init_interrupts init");
 
 	spin_lock_init(&vnet_info->vi_txlock);
 	spin_lock_init(&vnet_info->vi_rxlock);
@@ -1000,10 +1000,8 @@ micvnet_init_interrupts(struct micvnet_info *vnet_info)
 	INIT_WORK(&vnet_info->vi_ws_stop, micvnet_stop_ws);
 	INIT_WORK(&vnet_info->vi_ws_start, micvnet_start_ws);
 #ifdef HOST
-	printk("mic: micvnet_init_interrupts mic_reg_irqhandler start");
 	if ((ret = mic_reg_irqhandler(mic_ctx, 3, "Host DoorBell 3",
 				      micvnet_host_doorbell_intr_handler))) {
-	printk("mic: micvnet_init_interrupts mic_reg_irqhandler end");
 #else
 	if ((ret = request_irq(get_sbox_irq(VNET_SBOX_INT_IDX),
 				micvnet_host_intr_handler, IRQF_DISABLED,
@@ -1012,11 +1010,9 @@ micvnet_init_interrupts(struct micvnet_info *vnet_info)
 		printk(KERN_ERR "%s: interrupt registration failed\n", __func__);
 		goto err_exit_destroy_workqueue;
 	}
-	printk("mic: micvnet_init_interrupts end");
 	return 0;
 
 err_exit_destroy_workqueue:
-	printk("mic: micvnet_init_interrupts destroy");
 	destroy_workqueue(vnet_info->vi_wq);
 	return ret;
 }
@@ -1055,7 +1051,7 @@ micvnet_init_netdev(struct micvnet_info *vnet_info)
 	dev_vnet->ml_priv = vnet_info;
 
 	if (micvnet_setmac_from_serial(dev_vnet))
-		random_ether_addr(dev_vnet->dev_addr);
+		eth_hw_addr_random(dev_vnet);
 
 	dev_vnet->rtnl_link_ops = &micvnet_link_ops;
 

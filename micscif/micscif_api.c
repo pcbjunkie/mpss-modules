@@ -38,7 +38,6 @@
 #include <linux/ktime.h>
 #include <linux/sched.h>
 #include <linux/kref.h>
-//#include <arch/x86/include/asm/atomic.h>
 #include <linux/module.h>
 #include "scif.h"
 #include "mic/micscif.h"
@@ -1972,36 +1971,28 @@ __scif_pin_pages(void *addr, size_t len, int *out_prot,
 		prot |= SCIF_PROT_WRITE;
 retry:
 		mm = current->mm;
-		down_write(&mm->mmap_sem);
+		mmap_write_lock(mm);
 		if (ulimit) {
 			err = __scif_check_inc_pinned_vm(mm, nr_pages);
 			if (err) {
-				up_write(&mm->mmap_sem);
+				mmap_write_unlock(mm);
 				pinned_pages->nr_pages = 0;
 				goto error_unmap;
 			}
 		}
 
-	// OG CTP
+		/*
+		 * Original MPSS: get_user_pages(current, mm, addr, nr_pages,
+		 * write, force=0, pages, vmas).  The 5.x community port passed
+		 * `current` as the start address, which breaks all SCIF RMA.
+		 */
 		pinned_pages->nr_pages = get_user_pages(
-				current,
+				(unsigned long)addr,
 				nr_pages,
-				0,
+				(prot & SCIF_PROT_WRITE) ? FOLL_WRITE : 0,
 				pinned_pages->pages,
 				pinned_pages->vma);
-// OG CTP BRWAK LOOK
-/*
-		pinned_pages->nr_pages = get_user_pages(
-				current,
-				mm,
-				(uint64_t)addr,
-				nr_pages,
-				!!(prot & SCIF_PROT_WRITE),
-				0,
-				pinned_pages->pages,
-				pinned_pages->vma);
-*/
-		up_write(&mm->mmap_sem);
+		mmap_write_unlock(mm);
 		if (nr_pages == pinned_pages->nr_pages) {
 #ifdef RMA_DEBUG
 			atomic_long_add_return(nr_pages, &ms_info.rma_pin_cnt);
@@ -2447,13 +2438,13 @@ scif_put_pages(struct scif_range *pages)
 	int ret;
 	struct reg_range_t *window = pages->cookie;
 	struct endpt *ep = (struct endpt *)window->ep;
-	if (atomic_read((atomic_t *) &(&(ep->ref_count))->refcount) > 0) {
+	if (kref_read(&ep->ref_count) > 0) {
 		kref_get(&(ep->ref_count));
 	} else {
 		WARN_ON(1);
 	}
 	ret = __scif_put_pages(pages);
-	if (atomic_read((atomic_t *) &(&(ep->ref_count))->refcount) > 0) {
+	if (kref_read(&ep->ref_count) > 0) {
 		kref_put(&(ep->ref_count), scif_ref_rel);
 	} else {
 		//WARN_ON(1);

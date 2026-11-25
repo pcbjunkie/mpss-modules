@@ -57,7 +57,6 @@ void micscif_rma_destroy_tcw(struct rma_mmu_notifier *mmn,
 #ifdef CONFIG_MMU_NOTIFIER
 static void scif_mmu_notifier_release(struct mmu_notifier *mn,
 			struct mm_struct *mm);
-// OG CTP BROKE FIX
 static void scif_mmu_notifier_invalidate_range(struct mmu_notifier *mn,
 				struct mm_struct *mm,
 				unsigned long start, unsigned long end);
@@ -93,7 +92,8 @@ static void scif_mmu_notifier_invalidate_range(struct mmu_notifier *mn,
 	struct rma_mmu_notifier	*mmn;
 	mmn = container_of(mn, struct rma_mmu_notifier, ep_mmu_notifier);
 	ep = mmn->ep;
-	micscif_rma_destroy_tcw(mmn, ep, true, start, PAGE_SIZE);
+	/* was invalidate_page (single page) before 4.13; now a range */
+	micscif_rma_destroy_tcw(mmn, ep, true, start, end - start);
 	pr_debug("%s address 0x%lx\n", __func__, start);
 	return;
 }

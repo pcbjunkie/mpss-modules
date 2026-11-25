@@ -57,30 +57,18 @@ extern "C" {
 #include <linux/timer.h>
 #include <linux/irqflags.h>
 #include <linux/time.h>
-/*
-	og ctp
-*/
 #include <linux/ktime.h>
 #include <linux/time32.h>
 #include <linux/time64.h>
 #include <linux/delay.h>
-/*
-	og ctp
-*/
 #include <linux/spinlock.h>
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
-/*
-	og ctp
-*/
 #include <linux/delay.h>
 #include <linux/wait.h>
 #include <asm/bug.h>
-/*
-	og ctp
-*/
 #include <linux/pci.h>
 #include <linux/device.h>
 #include <linux/fs.h>
@@ -272,8 +260,6 @@ extern "C" {
 
 /*
 typedef struct _timer_list_t {
-        // All fields that change during normal runtime grouped to the
-        // same cacheline
         struct hlist_node       entry;
         unsigned long           expires;
         void                    (*function)(struct timer_list *);
@@ -281,13 +267,11 @@ typedef struct _timer_list_t {
 
         unsigned long           data;
         timer_list;
-//        mic_ctx_t               mdata;
 #ifdef CONFIG_LOCKDEP
         struct lockdep_map      lockdep_map;
 #endif
 } timer_list;
 */
-// OG CTP BVRESAK
 #define page_cache_get(page) get_page(page)
 #define page_cache_release(page) put_page(page)
 typedef enum mic_modes

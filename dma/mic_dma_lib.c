@@ -1559,18 +1559,18 @@ mic_dma_proc_reg_open(struct inode *inode, struct file *file)
 	return single_open(file, mic_dma_proc_reg_show, PDE_DATA(inode));
 }
 
-struct file_operations micdma_ring_fops = {
-	.open		= mic_dma_proc_ring_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops micdma_ring_fops = {
+	.proc_open		= mic_dma_proc_ring_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
-struct file_operations micdma_reg_fops = {
-	.open		= mic_dma_proc_reg_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops micdma_reg_fops = {
+	.proc_open		= mic_dma_proc_reg_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 static void

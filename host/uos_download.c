@@ -43,16 +43,10 @@
 #include "mic/mic_virtio.h"
 #include <linux/proc_fs.h>
 #include "mic/micveth.h"
-/*
- og ctp
-*/
 #include <linux/timekeeping.h>
 #include <linux/ktime.h>
 #include <linux/time64.h>
 #include <linux/time32.h>
-/*
- og ctp
-*/
 
 #define APERTURE_SEGMENT_SIZE   ((1) * 1024 * 1024 * 1024ULL)
 
@@ -96,7 +90,6 @@ static int64_t etc_comp = 0;
 static uint64_t
 etc_read(uint8_t *mmio_va)
 {
-	printk("mic: etc_read init");
 	uint32_t low;
 	uint32_t hi1,hi2;
 
@@ -111,10 +104,8 @@ etc_read(uint8_t *mmio_va)
 static int64_t
 calc_deltaf(mic_ctx_t *mic_ctx)
 {
-	printk("mic: calc_deltaf init");
 	const int64_t ETC_CLK_FREQ = 15625000;
 	const uint32_t TIME_DELAY_IN_SEC = 10;
-//	const uint32_t TIME_DELAY_IN_MSEC = 1000;
 	const int64_t etc_cnt1 = ETC_CLK_FREQ * TIME_DELAY_IN_SEC;
 	int64_t etc_cnt2;
 
@@ -133,66 +124,31 @@ calc_deltaf(mic_ctx_t *mic_ctx)
 	 * deltaf_in_ppm = ((etc_count2 - etc_count1) * 10 ^ 6) / etc_count1
 	 */
 	/* Need to implement the monotonic/irqsave logic for windows */
-	printk("CTP RESET CTP KERNEL OG calc_deltaf 1");
 	unsigned long flags;
-	// og ctp
 	struct timespec64 ts1, ts2;
-//	struct timespec ts132, ts232;
 	int64_t mono_ns;
 	int i = 0;
-//	const int64_t int_thridy_two_max = 2147483647;
 	do {
-		printk("CTP RESET CTP KERNEL OG calc_deltaf start 1 %d", i);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start %d", i);
 		local_irq_save(flags);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 1 %d", i);
 		cnt1 = etc_read(mic_ctx->mmio.va);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 2 %d",i);
-		// og ctp
 		ktime_get_raw_ts64(&ts1);
-//         	getrawmonotonic64(&ts1);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 3 %d", i);
 		local_irq_restore(flags);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 4 %d", i);
 		mdelay(TIME_DELAY_IN_SEC * 1000);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 5 %d", i);
 		local_irq_save(flags);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 6 %d", i);
 		cnt2 = etc_read(mic_ctx->mmio.va);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 7 %d", i);
-		// og ctp
-//		getrawmonotonic64(&ts2);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 8 %d", i);
 		ktime_get_raw_ts64(&ts2);
 		local_irq_restore(flags);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf start ds 9 %d", i);
 		etc_cnt2 = cnt2 - cnt1;
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf middle %d", i);
-		// OG CTP
-		// FIX BROKEN
-//		ts1 = timespec_to_timespec64(ts132);
-//		ts2 = timespec_to_timespec64(ts232);
 
-		printk("CTP RESET CTP KERNEL OG calc_deltaf middle 1 %d", i);
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf middle part 1 %d", i);
 		ts2 = timespec64_sub(ts2, ts1);
 		mono_ns = timespec64_to_ns(&ts2);
-		// CTP OG 64bit to 32bit
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf middle part 2 %d", i);
-//		mono_ns = mono_ns / int_thridy_two_max;
-		// to provent 0 / 0 crash
-//		mono_ns = mono_ns + 1;
 
 		/* Recalculate etc_cnt2 based on getrawmonotonic */
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf middle part 3 %d", i);
 		etc_cnt2 = (etc_cnt2 * TIME_DELAY_IN_SEC * 1000 * 1000 * 1000) / mono_ns;
 
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf middle part 4 %d", i);
 		deltaf = ( ETC_CLK_FREQ * (etc_cnt2 - etc_cnt1)) / etc_cnt1;
 
-		//printk("CTP RESET CTP KERNEL OG calc_deltaf middle part 5 %d", i);
 		deltaf_in_ppm = (1000 * 1000 * (etc_cnt2 - etc_cnt1)) / etc_cnt1;
-		printk("CTP RESET CTP KERNEL OG calc_deltaf middle part 6, deltaf_in_ppm %d %lld", i, deltaf_in_ppm);
 		i++;
 		/*
 		 * HSD #4844900
@@ -202,10 +158,8 @@ calc_deltaf(mic_ctx_t *mic_ctx)
 		 * i) mmio traffic cauing variable delays for mmio read
 		 * ii) NMIs affecting this code
 		 */
-		printk("CTP RESET CTP KERNEL OG calc_deltaf end %d", i);
 	} while (i < 10 && (deltaf_in_ppm > 2700 || deltaf_in_ppm < -2700));
 
-	printk("CTP RESET CTP KERNEL OG calc_deltaf end 2");
 	pr_debug("etc deltaf: %lld\n", deltaf);
 	/*
 	 * For intel chipsets, Spread Spectrum Clocking (SSC) (in the limit)
@@ -227,7 +181,6 @@ calc_deltaf(mic_ctx_t *mic_ctx)
 			deltaf_in_ppm = -2500;
 		deltaf = (ETC_CLK_FREQ * deltaf_in_ppm) / (1000 * 1000);
 	}
-	printk("CTP RESET CTP KERNEL OG calc_deltaf done");
 	if (deltaf > 0 && deltaf <= 10)
 		deltaf = 0;
 	return deltaf;
@@ -236,14 +189,10 @@ calc_deltaf(mic_ctx_t *mic_ctx)
 void
 calculate_etc_compensation(mic_ctx_t *mic_ctx)
 {
-	printk("mic: calculate_etc_compensation init");
 	if (mic_ctx->bi_family == FAMILY_KNC) {
-		int64_t etc_comp = mic_ctx->etc_comp;
 		if (!etc_comp)
-			printk("CTP RESET CTP KERNEL OG calculate_etc_compensation 1");
 			etc_comp = calc_deltaf(mic_ctx);
 		mic_ctx->etc_comp = etc_comp;
-		printk("CTP RESET CTP KERNEL OG calculate_etc_compensation end");
 	}
 }
 
@@ -256,7 +205,6 @@ calculate_etc_compensation(mic_ctx_t *mic_ctx)
 int
 wait_for_bootstrap(uint8_t *mmio_va)
 {
-	printk("mic: wait_for_bootstrap init");
 	uint32_t scratch2 = 0;
 	int count = 0;
 #ifdef MIC_IS_EMULATION
@@ -294,7 +242,6 @@ wait_for_bootstrap(uint8_t *mmio_va)
 void
 get_adapter_memsize(uint8_t *mmio_va, uint32_t *adapter_mem_size)
 {
-	printk("mic: get_adapter_memsize init");
 	uint32_t memsize = 0;
 	uint32_t scratch0 = {0};
 
@@ -337,7 +284,6 @@ get_adapter_memsize(uint8_t *mmio_va, uint32_t *adapter_mem_size)
 void
 get_uos_loadoffset(uint8_t *mmio_va, uint32_t *uos_load_offset)
 {
-	printk("mic: get_uos_loadoffset init");
 	uint32_t scratch2 = 0;
 
 	scratch2 = SBOX_READ(mmio_va, SBOX_SCRATCH2);
@@ -353,7 +299,6 @@ get_uos_loadoffset(uint8_t *mmio_va, uint32_t *uos_load_offset)
 void
 get_uos_reserved_size(uint8_t* mmio_va, uint32_t adapter_memsize, uint32_t *uos_reserve_size)
 {
-	printk("mic: get_uos_reserved_size init");
 	uint32_t reserve_size = 0;
 
 	// Only calculate if not explicitly specified by the user
@@ -382,7 +327,6 @@ get_uos_reserved_size(uint8_t* mmio_va, uint32_t adapter_memsize, uint32_t *uos_
 void
 get_apic_id(uint8_t *mmio_va, uint32_t *apic_id)
 {
-	printk("mic: get_apic_id init");
 	uint32_t scratch2 = 0;
 
 	scratch2 = SBOX_READ(mmio_va, SBOX_SCRATCH2);
@@ -401,7 +345,6 @@ get_apic_id(uint8_t *mmio_va, uint32_t *apic_id)
 void
 set_pci_aperture(mic_ctx_t *mic_ctx, uint32_t gtt_index, uint64_t phy_addr, uint32_t num_bytes)
 {
-	printk("mic: set_pci_aperture init");
 	uint32_t num_pages;
 	uint32_t gtt_entry;
 	uint32_t i;
@@ -437,7 +380,6 @@ set_pci_aperture(mic_ctx_t *mic_ctx, uint32_t gtt_index, uint64_t phy_addr, uint
 void
 set_uos_size(uint8_t *mmio_va, uint32_t uos_size)
 {
-	printk("mic: set_uos_size init");
 	uint32_t scratch5;
 
 	scratch5 = uos_size;
@@ -456,7 +398,6 @@ set_uos_size(uint8_t *mmio_va, uint32_t uos_size)
 void
 set_uos_reserved_size(uint8_t *mmio_va, uint32_t uos_reserved_size)
 {
-	printk("mic: set_uos_reserved_size init");
 	uint32_t scratch3;
 
 	scratch3 = uos_reserved_size;
@@ -473,7 +414,6 @@ set_uos_reserved_size(uint8_t *mmio_va, uint32_t uos_reserved_size)
 product_family_t
 get_product_family(uint32_t device_id)
 {
-	printk("mic: get_product_family init");
 	product_family_t product_family;
 
 	switch (device_id) {
@@ -519,7 +459,6 @@ get_product_family(uint32_t device_id)
 int
 load_uos_into_gddr(mic_ctx_t *mic_ctx, char *imgname, uint32_t* uos_size, uint64_t *uos_cmd_offset)
 {
-	printk("mic: load_uos_into_gddr init");
 	void *aperture_va;
 	uint8_t *mmio_va;
 	uint32_t apic_id = 0;
@@ -583,7 +522,6 @@ load_uos_into_gddr(mic_ctx_t *mic_ctx, char *imgname, uint32_t* uos_size, uint64
 int
 load_initramfs(mic_ctx_t *mic_ctx, char *initramfsname, uint32_t *initramfs_image, uint32_t *initramfs_size)
 {
-	printk("mic: load_initramfs init");
 	uint8_t *aperture_va;
 	uint8_t *mmio_va;
 	uint32_t apic_id = 0;
@@ -643,11 +581,9 @@ struct tmpqp {
 int
 load_command_line(mic_ctx_t *mic_ctx, uint64_t uos_cmd_offset)
 {
-	printk("mic: load_command_line init");
 	void *cmd_line_va = mic_ctx->aper.va + uos_cmd_offset;
 	uint32_t cmdlen = 0;
 	char *buf = NULL;
-	printk("mic: CTP load_command_line init");
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34)) || defined(RHEL_RELEASE_CODE)
 	struct board_info *bi = mic_ctx->bd_info;
 #endif
@@ -776,7 +712,6 @@ load_command_line(mic_ctx_t *mic_ctx, uint64_t uos_cmd_offset)
 int
 notify_uosboot(mic_ctx_t *mic_ctx, uint32_t uos_size)
 {
-	printk("mic: notify_uosboot init");
 	int status = 0;
 	uint32_t adapter_memsize = 0;
 	uint32_t uos_reserved_size = 0;
@@ -806,7 +741,6 @@ notify_uosboot(mic_ctx_t *mic_ctx, uint32_t uos_size)
 int
 boot_linux_uos(mic_ctx_t *mic_ctx, char *imgname, char *initramfsname)
 {
-	printk("mic: boot_linux_uos init");
 	int status = 0;
 	uint32_t uos_size = 0;
 	uint64_t uos_cmd_offset = 0;
@@ -848,7 +782,6 @@ boot_linux_uos(mic_ctx_t *mic_ctx, char *imgname, char *initramfsname)
 */
 int boot_micdev_app(mic_ctx_t *mic_ctx, char *imgname)
 {
-	printk("mic: boot_micdev_app init");
 	int status = 0;
 	uint32_t uos_size = 0;
 	uint8_t *mmio_va = 0;
@@ -894,27 +827,13 @@ exit:
 void
 reset_timer(struct timer_list *arg)
 {
-	printk("mic: reset_timer init");
-	printk("mic: CTP OG reset_timer start arg %px", arg);
 	mic_ctx_t *mic_ctx = from_timer(mic_ctx, arg, boot_timer);
-	printk("mic: CTP OG reset_timer middle 1 mic_ctx %px", mic_ctx);
 
 	uint32_t scratch2 = 0;
 	uint32_t postcode = mic_getpostcode(mic_ctx);
-	printk("mic: CTP OG reset_timer middle 2");
-	/*
-	return;
-	  CTP CRASH FILE ISSUE
-	  PROB DUE TO MIC_CTX not being mic_ctx and issue there
-	  prob mic_ctx is timer arg
-	  need to check
-*/
-
-//	uint32_t postcode = 0x0;
 
 
-//	printk("mic: CTP OG reset_timer middle 3 mic_ctx->mmio.va %s", mic_ctx->mmio.va);
-//	printk("mic: CTP OG reset_timer middle 3 postcode %d", postcode);
+
 
 	printk("mic%d: Resetting (Post Code %c%c)\n", mic_ctx->bi_id, 
 		    postcode & 0xff, (postcode >> 8) & 0xff);
@@ -923,7 +842,6 @@ reset_timer(struct timer_list *arg)
 	/* Assuming that the bootstrap takes around 90 seconds to reset,
 	 * we fail after 300 seconds, thus allowing 3 attempts to reset
 	 */
-	printk("mic: CTP OG reset_timer middle 4");
 	if (mic_ctx->reset_count == RESET_FAIL_TIME ||
 		!postcode || 0xffffffff == postcode || mic_ctx->state == MIC_RESETFAIL) {
 		mic_ctx->reset_count = 0;
@@ -934,7 +852,6 @@ reset_timer(struct timer_list *arg)
 		return;
 	}
 
-	printk("mic: CTP OG reset_timer middle 5");
 	/* check for F2 or F4 error codes from bootstrap */
 	if ((postcode == RESET_FAILED_F2) || (postcode == RESET_FAILED_F4)) {
 		if (mic_ctx->resetworkq) {
@@ -947,9 +864,7 @@ reset_timer(struct timer_list *arg)
 		}
 	}
 
-	printk("mic: CTP OG reset_timer middle 6");
 	/* checking if bootstrap is ready or still resetting */
-//	mic_setstate(mic_ctx, MIC_READY);
 	scratch2 = SBOX_READ(mic_ctx->mmio.va, SBOX_SCRATCH2);
 	if (SCRATCH2_DOWNLOAD_STATUS(scratch2)) {
 		mic_ctx->boot_start = 0;
@@ -967,55 +882,27 @@ reset_timer(struct timer_list *arg)
 		return;
 	}
 
-	// OG CTp
-//	del_timer(&mic_ctx->boot_timer);
-//	mutex_unlock(&mic_ctx->state_lock);
 
-// og ctp
-//	del_timer(&mic_ctx->boot_timer);
-//	mic_ctx->boot_timer.function = reset_timer;
-//	mic_ctx->boot_timer.data = (unsigned long)mic_ctx;
-//	mic_ctx->boot_timer.expires = jiffies + HZ;
 
-	timer_setup(&mic_ctx->boot_timer, reset_timer, 0);
+	mic_ctx->boot_timer.function = reset_timer;
 	mod_timer(&mic_ctx->boot_timer, jiffies + HZ);
-//	add_timer(&mic_ctx->boot_timer);
-//	add_timer(reset_timer);
 }
 
 void
 adapter_wait_reset(mic_ctx_t *mic_ctx)
 {
-	printk("mic: adapter_wait_reset init");
-	// og ctp
-	printk("mic: CTP OG adapter_wait_reset start");
-//	del_timer(&mic_ctx->boot_timer);
-//	mic_ctx->boot_timer.function = reset_timer;
-//	unsigned long long_mic  = mic_ctx;
-//	mic_ctx->boot_timer.flags = (u32)mic_ctx;
-//	mic_ctx->boot_timer.mdata = mic_ctx;
-//	mic_ctx->boot_timer.expires = jiffies + HZ;
 	mic_ctx->boot_start = jiffies;
-	timer_setup(&mic_ctx->boot_timer, reset_timer, 0);
+	mic_ctx->boot_timer.function = reset_timer;
 	mod_timer(&mic_ctx->boot_timer, jiffies + HZ);
-	printk("mic: CTP OG adapter_wait_reset middle 2");
-//	add_timer(&mic_ctx->boot_timer);
-	printk("mic: CTP OG adapter_wait_reset end");
-	printk("mic: CTP OG adapter_wait_reset mic_ctx %px", mic_ctx);
-//	printk("mic: CTP OG adapter_wait_reset mic_ctx %d", (u32)mic_ctx);
-	printk("mic: CTP OG adapter_wait_reset mic_ctx->boottimer %px", &mic_ctx->boot_timer);
-//	reset_timer(mic_ctx);
 }
 
 void
 adapter_reset(mic_ctx_t *mic_ctx, int wait_reset, int reattempt)
 {
-	printk("mic: adapter_reset init");
 	uint32_t resetReg;
 	mutex_lock(&mic_ctx->state_lock);
 	/* TODO: check state for lost node as well once design is done */
 	if ((mic_ctx->state == MIC_RESET || mic_ctx->state == MIC_READY) && (reattempt == 0)) {
-//	if ((mic_ctx->state == MIC_RESET) && (reattempt == 0)) {
 		if (wait_reset == 0) {
 			mic_setstate(mic_ctx, MIC_INVALID);
 			del_timer_sync(&mic_ctx->boot_timer);
@@ -1027,7 +914,6 @@ adapter_reset(mic_ctx_t *mic_ctx, int wait_reset, int reattempt)
 	}
 
 	mic_setstate(mic_ctx, MIC_RESET);
-	printk("CTP RESET CTP KERNEL OG");
 
 	mutex_unlock(&mic_ctx->state_lock);
 
@@ -1059,10 +945,7 @@ adapter_reset(mic_ctx_t *mic_ctx, int wait_reset, int reattempt)
 	if (!wait_reset) {
 		return;
 	}
-	printk("mic: adapter_reset adapter_wait_reset start");
 	adapter_wait_reset(mic_ctx);
-	printk("mic: adapter_reset adapter_wait_reset end");
-	printk("mic: adapter_reset end");
 
 }
 
@@ -1072,7 +955,6 @@ int
 adapter_shutdown_device(mic_ctx_t *mic_ctx)
 {
 	;
-	printk("mic: adapter_shutdown_device init");
 
 	if (micpm_get_reference(mic_ctx, true))
 		return 0;
@@ -1097,7 +979,6 @@ int
 adapter_stop_device(mic_ctx_t *mic_ctx, int wait_reset, int reattempt)
 {
 	;
-	printk("mic: adapter_stop_device init");
 
 	micvcons_stop(mic_ctx);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34) || \
@@ -1127,7 +1008,6 @@ adapter_stop_device(mic_ctx_t *mic_ctx, int wait_reset, int reattempt)
 static void
 destroy_reset_workqueue(mic_ctx_t *mic_ctx)
 {
-	printk("mic: destroy_reset_workqueue init");
 	struct workqueue_struct *tempworkq;
 	tempworkq = mic_ctx->resetworkq;
 	mic_ctx->resetworkq = NULL;
@@ -1138,7 +1018,6 @@ destroy_reset_workqueue(mic_ctx_t *mic_ctx)
 int
 adapter_remove(mic_ctx_t *mic_ctx)
 {
-	printk("mic: adapter_remove init");
 
 #ifdef USE_VCONSOLE
 	if (mic_ctx->bi_vcons.dc_hdr_virt) {
@@ -1188,10 +1067,8 @@ adapter_remove(mic_ctx_t *mic_ctx)
 #define MIC_MAX_BOOT_TIME 180	// Maximum number of seconds to wait for boot to complete
 
 static void
-//online_timer(unsigned long arg)
 online_timer(struct timer_list *arg)
 {
-	printk("mic: online_timer init");
 
 	mic_ctx_t *mic_ctx = from_timer(mic_ctx, arg, boot_timer);
 	uint64_t delay = (jiffies - mic_ctx->boot_start) / HZ;
@@ -1205,24 +1082,17 @@ online_timer(struct timer_list *arg)
 		return;
 	}
 
-	// og ctp
-//	mic_ctx->boot_timer.function = online_timer;
-//	mic_ctx->boot_timer.data = (unsigned long)mic_ctx;
-//	mic_ctx->boot_timer.expires = jiffies + HZ;
 
 
-        timer_setup(&mic_ctx->boot_timer, online_timer, 0);
+	mic_ctx->boot_timer.function = online_timer;
 	mod_timer(&mic_ctx->boot_timer, jiffies + HZ);
-//	add_timer(&mic_ctx->boot_timer);
 	if (!(delay % 5))
 		printk("Waiting for MIC %d boot %lld\n", mic_ctx->bi_id, delay);
 }
 
 static void
 boot_timer(struct timer_list *arg)
-//boot_timer(unsigned long arg)
 {
-	printk("mic: boot_timer init");
 	mic_ctx_t *mic_ctx = from_timer(mic_ctx, arg, boot_timer);
 	struct micvnet_info *vnet_info = (struct micvnet_info *) mic_ctx->bi_vethinfo;
 	uint32_t postcode = mic_getpostcode(mic_ctx);
@@ -1231,7 +1101,6 @@ boot_timer(struct timer_list *arg)
         printk("mic%d: (Post Code %c%c)\n", mic_ctx->bi_id, postcode & 0xff, (postcode >> 8) & 0xff);
 
 	if ((mic_ctx->state != MIC_BOOT) && (mic_ctx->state != MIC_ONLINE)) {
-	        printk("mic: boot_timer wrong state");
 		return;
 	}
 
@@ -1251,26 +1120,15 @@ boot_timer(struct timer_list *arg)
 		timer_restart = (mic_ctx->state != MIC_ONLINE)? true: false;
 
 	if (timer_restart) {
-	// og ctp
-//		mic_ctx->boot_timer.function = boot_timer;
-//		mic_ctx->boot_timer.data = (unsigned long)mic_ctx;
-//		mic_ctx->boot_timer.expires = jiffies + HZ;
 
-		timer_setup(&mic_ctx->boot_timer, boot_timer, 0);
+	mic_ctx->boot_timer.function = boot_timer;
 		mod_timer(&mic_ctx->boot_timer, jiffies + HZ);
-//		add_timer(&mic_ctx->boot_timer);
-	        printk("mic: boot_timer timer restarted");
 		return;
 	}
 
-// og ctp
-//	mic_ctx->boot_timer.function = online_timer;
-//	mic_ctx->boot_timer.data = (unsigned long)mic_ctx;
-//	mic_ctx->boot_timer.expires = jiffies + HZ;
 
-	timer_setup(&mic_ctx->boot_timer, online_timer,0);
+	mic_ctx->boot_timer.function = online_timer;
 	mod_timer(&mic_ctx->boot_timer, jiffies + HZ);
-//	add_timer(&mic_ctx->boot_timer);
 
 	printk("MIC %d Network link is up\n", mic_ctx->bi_id);
 	schedule_work(&mic_ctx->boot_ws);
@@ -1279,7 +1137,6 @@ boot_timer(struct timer_list *arg)
 void
 post_boot_startup(struct work_struct *work)
 {
-	printk("mic: post_boot_startup init");
 
 	mic_ctx_t *mic_ctx
 		= container_of(work, mic_ctx_t, boot_ws);
@@ -1300,7 +1157,6 @@ post_boot_startup(struct work_struct *work)
 void
 attempt_reset(struct work_struct *work)
 {
-	printk("mic: attempt_reset init");
 	mic_ctx_t *mic_ctx
 		= container_of(work, mic_ctx_t, resetwork);
 	printk("Reattempting reset after F2/F4 failure\n");
@@ -1310,7 +1166,6 @@ attempt_reset(struct work_struct *work)
 static void
 ioremap_work(struct work_struct *work)
 {
-	printk("mic: ioremap_work init");
 	mic_ctx_t *mic_ctx
 		= container_of(work, mic_ctx_t, ioremapwork);
 	mic_ctx->aper.va = ioremap_wc(mic_ctx->aper.pa, mic_ctx->aper.len);
@@ -1326,25 +1181,16 @@ ioremap_work(struct work_struct *work)
 int
 adapter_post_boot_device(mic_ctx_t *mic_ctx)
 {
-	printk("mic: adapter_post_boot_device init");
-// og ctp
-//	del_timer()
-	printk("mic %d: CTP Kernel OG adapter_post_boot_device start", mic_ctx->bi_id);
-//	mic_ctx->boot_timer.function = boot_timer;
-//	mic_ctx->boot_timer.data = (unsigned long)mic_ctx;
-//	mic_ctx->boot_timer.expires = jiffies + HZ;
 	mic_ctx->boot_start = jiffies;
 
-	timer_setup(&mic_ctx->boot_timer, boot_timer, 0);
+	mic_ctx->boot_timer.function = boot_timer;
 	mod_timer(&mic_ctx->boot_timer, jiffies + HZ);
-	printk("mic %d: CTP Kernel OG adapter_post_boot_device end", mic_ctx->bi_id);
 	return 0;
 }
 
 int
 mic_shutdown_host_doorbell_intr_handler(mic_ctx_t *mic_ctx, int doorbell)
 {
-	printk("mic: mic_shutdown_host_doorbell_intr_handler init");
 	struct micscif_dev *dev = &scif_dev[mic_get_scifnode_id(mic_ctx)];
 	mic_ctx->sdbic1 = SBOX_READ(mic_ctx->mmio.va, SBOX_SDBIC1);
 	SBOX_WRITE(0x0, mic_ctx->mmio.va, SBOX_SDBIC1);
@@ -1358,7 +1204,6 @@ mic_shutdown_host_doorbell_intr_handler(mic_ctx_t *mic_ctx, int doorbell)
 static int
 ramoops_proc_show(struct seq_file *m, void *data)
 {
-	printk("mic: ramoops_proc_show init");
 	uint64_t id = ((uint64_t)data) & 0xffffffff;
 	uint64_t entry = ((uint64_t)data) >> 32;
 	struct list_head *pos, *tmpq;
@@ -1408,22 +1253,20 @@ ramoops_proc_show(struct seq_file *m, void *data)
 static int
 ramoops_proc_open(struct inode *inode, struct file *file)
 {
-	printk("mic: ramoops_proc_open init");
 	return single_open(file, ramoops_proc_show, NULL);
 }
 
-struct file_operations ramoops_proc_fops = {
-	.open		= ramoops_proc_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-        .release 	= single_release,
+struct proc_ops ramoops_proc_fops = {
+	.proc_open		= ramoops_proc_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+        .proc_release 	= single_release,
 };
 
 #else // LINUX VERSION
 static int
 ramoops_read(char *buf, char **start, off_t offset, int len, int *eof, void *data)
 {
-	printk("mic: ramoops_read init");
 	uint64_t id = ((uint64_t)data) & 0xffffffff;
 	uint64_t entry = ((uint64_t)data) >> 32;
 	struct list_head *pos, *tmpq;
@@ -1485,7 +1328,6 @@ ramoops_read(char *buf, char **start, off_t offset, int len, int *eof, void *dat
 int
 set_ramoops_pa(mic_ctx_t *mic_ctx)
 {
-	printk("mic: set_ramoops_pa init");
 	if (mic_ctx->ramoops_pa[0] == 0L) {
 		kfree(mic_ctx->ramoops_va[0]);
 		mic_ctx->ramoops_size = 0;
@@ -1500,7 +1342,6 @@ int ramoops_count = 4;
 void
 ramoops_probe(mic_ctx_t *mic_ctx)
 {
-	printk("mic: ramoops_probe init");
 	char name[64];
 
 	mic_ctx->ramoops_size = ramoops_count * PAGE_SIZE;
@@ -1540,7 +1381,6 @@ ramoops_probe(mic_ctx_t *mic_ctx)
 void
 ramoops_flip(mic_ctx_t *mic_ctx)
 {
-	printk("mic: ramoops_flip init");
 	unsigned long flags;
 
 	if (mic_ctx->ramoops_size == 0)
@@ -1560,13 +1400,11 @@ ramoops_flip(mic_ctx_t *mic_ctx)
 		set_ramoops_pa(mic_ctx);
 	}
 	spin_unlock_irqrestore(&mic_ctx->ramoops_lock, flags);
-	printk("mic: ramoops_flip end");
 }
 
 int
 adapter_probe(mic_ctx_t *mic_ctx)
 {
-	printk("mic: adapter_probe init");
 	int db;
 	uint32_t scratch13;
 	int32_t status = 0;
@@ -1600,16 +1438,12 @@ adapter_probe(mic_ctx_t *mic_ctx)
 	if (mic_vhost_blk_probe(mic_ctx->bd_info))
 		printk(KERN_ERR "%s: mic_vhost_blk_probe failed\n", __FUNCTION__);
 #endif
-	printk("mic: adapter_probe micscif_probe start");
 	micscif_probe(mic_ctx);
 	if(micpm_probe(mic_ctx))
 		printk(KERN_ERR "%s: micpm_probe failed\n", __FUNCTION__);
-	printk("mic: adapter_probe micscif_probe end");
 
-	printk("mic: adapter_probe mic_reg_irqhandler start");
 	mic_reg_irqhandler(mic_ctx, 1, "MIC SHUTDOWN DoorBell 1",
 			mic_shutdown_host_doorbell_intr_handler);
-	printk("mic: adapter_probe mic_reg_irqhandler end");
 
 	ramoops_probe(mic_ctx);
 	if (status) {
@@ -1620,7 +1454,6 @@ adapter_probe(mic_ctx_t *mic_ctx)
 	// We should only enable DMA after uos is booted
 	//mic_dma_lib_init(mic_ctx->mmio.va+HOST_SBOX_BASE_ADDRESS);
 
-	printk("mic: adapter_probe end");
 	return status;
 }
 
@@ -1672,19 +1505,15 @@ adapter_init_device(mic_ctx_t *mic_ctx)
 
 	spin_lock_init(&mic_ctx->sysfs_lock);
 	mic_setstate(mic_ctx, MIC_RESET);
-	printk("CTP RESET CTP KERNEL OG adapter_init");
 	mic_ctx->mode = MODE_NONE;
 	mic_ctx->reset_count = 0;
 	mutex_init (&mic_ctx->state_lock);
 	init_waitqueue_head(&mic_ctx->resetwq);
 	init_waitqueue_head(&mic_ctx->ioremapwq);
-// CTP OG
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,15,0)
 		init_timer(&mic_ctx->boot_timer);
 #else
-	printk("CTP RESET CTP KERNEL OG crash test");
 		timer_setup(&mic_ctx->boot_timer, NULL, 0);
-	printk("CTP RESET CTP KERNEL OG crash pass");
 #endif
 	if (!(mic_ctx->resetworkq = __mic_create_singlethread_workqueue("RESET WORK")))
 		return -ENOMEM;
@@ -1788,10 +1617,6 @@ adapter_init_device(mic_ctx_t *mic_ctx)
 
 	/* Determine the amount of compensation that needs to be applied to MIC's ETC timer */
 	calculate_etc_compensation(mic_ctx);
-// OG CTP KERN
-//	printk("CTP RESET CTP KERNEL OG adapter_init READY");
-//	mic_setstate(mic_ctx, MIC_READY);
-//	printk("CTP RESET CTP KERNEL OG adapter_init READY");
 
 	return 0;
 
@@ -1807,14 +1632,12 @@ destroy_reset_wq:
 void
 mic_enable_interrupts(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP mic_enable_interrupts init");
 	ENABLE_MIC_INTERRUPTS(mic_ctx->mmio.va);
 }
 
 void
 mic_disable_interrupts(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP mic_disable_interrupts init");
 	uint32_t sboxSice0reg;
 
 	sboxSice0reg = SBOX_READ(mic_ctx->mmio.va, SBOX_SICE0);
@@ -1824,7 +1647,6 @@ mic_disable_interrupts(mic_ctx_t *mic_ctx)
 void
 mic_enable_msi_interrupts(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP mic_enable_msi_interrupts init");
 	uint32_t sboxMXARreg;
 
 	// Only support single MSI interrupt for now
@@ -1839,34 +1661,25 @@ int
 mic_reg_irqhandler(mic_ctx_t *mic_ctx, int doorbell, char *idstring,
 		   int (*irqfunc)(mic_ctx_t *mic_ctx, int doorbell))
 {
-	printk("mic: CTP mic_reg_irqhandler init %d, %s", doorbell, idstring);
 	mic_irqhandler_t *irqhandle;
 	unsigned long flags;
 
 	if (doorbell > MIC_IRQ_MAX) {
 		return EINVAL;
 	}
-//	printk("mic: CTP mic_reg_irqhandler start 1 %d, %s", doorbell, idstring);
 
 	if (!(irqhandle = kmalloc(sizeof(mic_irqhandler_t), GFP_ATOMIC)))
 		goto memerror1;
 
-//	printk("mic: CTP mic_reg_irqhandler middle 1 %d, %s", doorbell, idstring);
 	if (!(irqhandle->ih_idstring = kmalloc(strlen(idstring) + 1, GFP_ATOMIC)))
 		goto memerror2;
 
-//	printk("mic: CTP mic_reg_irqhandler middle 2 %d, %s", doorbell, idstring);
 	irqhandle->ih_func = irqfunc;
-//	printk("mic: CTP mic_reg_irqhandler middle 3 %d, %s", doorbell, idstring);
 	strcpy(irqhandle->ih_idstring, idstring);
 
-//	printk("mic: CTP mic_reg_irqhandler middle 4 %d, %s", doorbell, idstring);
 	spin_lock_irqsave(&mic_ctx->bi_irq.mi_lock, flags);
-//	printk("mic: CTP mic_reg_irqhandler middle 5 %d, %s", doorbell, idstring);
 	list_add_tail(&irqhandle->ih_list, &mic_ctx->bi_irq.mi_dblist[doorbell]);
-//	printk("mic: CTP mic_reg_irqhandler middle 6 %d, %s", doorbell, idstring);
 	spin_unlock_irqrestore(&mic_ctx->bi_irq.mi_lock, flags);
-	printk("mic: CTP mic_reg_irqhandler end %d, %s", doorbell, idstring);
 	return 0;
 
 memerror2:
@@ -1878,7 +1691,6 @@ memerror1:
 int
 mic_unreg_irqhandler(mic_ctx_t *mic_ctx, int doorbell, char *idstring)
 {
-	printk("mic: CTP mic_unreg_irqhandler init");
 	mic_irqhandler_t *irqhandle;
 	struct list_head *pos, *tmpq;
 	unsigned long flags;
@@ -1900,7 +1712,6 @@ mic_unreg_irqhandler(mic_ctx_t *mic_ctx, int doorbell, char *idstring)
 static __always_inline
 void adapter_process_one_interrupt(mic_ctx_t *mic_ctx, uint32_t events)
 {
-	printk("mic: CTP adapter_process_one_interrupt init");
 	mic_irqhandler_t *irqhandle;
 	struct list_head *pos;
 	int doorbell;
@@ -1928,7 +1739,6 @@ void adapter_process_one_interrupt(mic_ctx_t *mic_ctx, uint32_t events)
 int
 adapter_isr(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP adapter_isr init");
 	volatile uint32_t sboxSicr0reg;
 	if (atomic_cmpxchg(&mic_ctx->gate_interrupt, 0, 1) == 1)
 		return -1;
@@ -1957,7 +1767,6 @@ adapter_isr(mic_ctx_t *mic_ctx)
 int
 adapter_imsr(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP adapter_imsr init");
 #if 0 /* TODO: disable interrupt when KNC auto-enable isn't used */
 	mic_disable_interrupts(mic_ctx);
 #endif
@@ -1967,7 +1776,6 @@ adapter_imsr(mic_ctx_t *mic_ctx)
 
 static void adapter_dpc(unsigned long dpc)
 {
-	printk("mic: CTP adapter_dpc init");
 	mic_ctx_t *mic_ctx =
 		container_of((struct tasklet_struct *)dpc, mic_ctx_t, bi_dpc);
 
@@ -2002,7 +1810,6 @@ static void adapter_dpc(unsigned long dpc)
 
 void ramoops_init(void)
 {
-	printk("mic: CTP ramoops_init init");
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
 	ramoops_dir = proc_mkdir("mic_ramoops", NULL);
 #else
@@ -2012,13 +1819,11 @@ void ramoops_init(void)
 
 void ramoops_exit(void)
 {
-	printk("mic: CTP ramoops_exit init");
 	remove_proc_entry("mic_ramoops", NULL);
 }
 
 void ramoops_remove(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP ramoops_remove init");
 	char name[64];
 	int i;
 
@@ -2041,7 +1846,6 @@ void ramoops_remove(mic_ctx_t *mic_ctx)
 
 void vmcore_init(void)
 {
-	printk("mic: CTP vmcore_init init");
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
 	vmcore_dir = proc_mkdir("mic_vmcore", NULL);
 #else
@@ -2051,7 +1855,6 @@ void vmcore_init(void)
 
 void vmcore_exit(void)
 {
-	printk("mic: CTP vmcore_exit init");
 	if (vmcore_dir) {
 		remove_proc_entry("mic_vmcore", NULL);
 		vmcore_dir = NULL;
@@ -2060,7 +1863,6 @@ void vmcore_exit(void)
 
 void vmcore_remove(mic_ctx_t *mic_ctx)
 {
-	printk("mic: CTP vmcore_remove init");
 	char name[64];
 
 	snprintf(name, 64, "mic%d", mic_ctx->bi_id);
@@ -2080,7 +1882,6 @@ void vmcore_remove(mic_ctx_t *mic_ctx)
 void
 adapter_init(void)
 {
-	printk("mic: CTP adapter_init init");
 	// Per driver init ONLY.
 	mic_dma_init();
 	micscif_init();
@@ -2093,7 +1894,6 @@ adapter_init(void)
 
 void show_stepping_comm(mic_ctx_t *mic_ctx,char *buf)
 {
-	printk("mic: CTP show_stepping_comm init");
 #define STEPINGSTRSIZE 3
 	char string[STEPINGSTRSIZE];
 	switch (mic_ctx->bi_family) {

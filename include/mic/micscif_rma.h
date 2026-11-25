@@ -916,18 +916,18 @@ static inline int __scif_dec_pinned_vm_lock(struct mm_struct *mm,
 {
 	if (mm && nr_pages && mic_ulimit_check) {
 		if (try_lock) {
-			if (!down_write_trylock(&mm->mmap_sem)) {
+			if (!mmap_write_trylock(mm)) {
 				return -1;
 			}
 		} else {
-			down_write(&mm->mmap_sem);
+			mmap_write_lock(mm);
 		}
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
 		atomic64_sub(nr_pages, &mm->pinned_vm);
 #else
 		mm->locked_vm -= nr_pages;
 #endif
-		up_write(&mm->mmap_sem);
+		mmap_write_unlock(mm);
 	}
 	return 0;
 }

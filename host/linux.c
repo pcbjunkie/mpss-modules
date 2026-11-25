@@ -245,7 +245,6 @@ extern struct bin_attribute mic_psmi_ptes_attr;
 static int
 mic_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
-	printk("mic: mic_probe init");
 	int brdnum = mic_data.dd_numdevs;
 	int err = 0;
 	bd_info_t *bd_info;
@@ -355,29 +354,20 @@ mic_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 			goto probe_unmapaper;
 		}
 
-	printk("mic: mic_probe adapter_probe start");
 	adapter_probe(&bd_info->bi_ctx);
-	printk("mic: mic_probe adapter_probe end");
 
 	if (mic_ctx->bi_psmi.enabled) {
-		printk("mic: mic_probe create sysfs 0");
 		err = sysfs_create_group(&mic_ctx->bd_info->bi_sysfsdev->kobj,
 						&psmi_attr_group);
-		printk("mic: mic_probe create sysfs 1 %s", err);
 		err = device_create_bin_file(mic_ctx->bd_info->bi_sysfsdev,
 						&mic_psmi_ptes_attr);
-		printk("mic: mic_probe create sysfs 2 %s", err);
 	}
-	printk("mic: mic_probe adapter_wait_reset start");
 	adapter_wait_reset(mic_ctx);
-	printk("mic: mic_probe adapter_wait_reset end");
 
-	// Adding a board instaance so increment the total number of MICs in the system.
 	list_add_tail(&bd_info->bi_list, &mic_data.dd_bdlist);
 	mic_data.dd_numdevs++;
 	printk("mic_probe %d:%d:%d as board #%d\n", pdev->bus->number,
 	       PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn), brdnum);
-	printk("mic: mic_probe end");
 	return 0;
 
 probe_unmapaper:
@@ -636,7 +626,6 @@ mic_init(void)
 	micvcons_create(mic_data.dd_numdevs);
 #endif
 
-	printk("mic: CTP IS A KERNEL OG number of devices detected %d \n", mic_data.dd_numdevs);
 	/* Initialize Data structures for PM Disconnect */
 	ret = micpm_disconn_init(mic_data.dd_numdevs + 1);
 	if (ret)
@@ -653,11 +642,9 @@ mic_init(void)
 		/* Dont fail driver load due to PM QoS API. Fall through */
 	}
 #endif
-	printk("mic: CTP IS A KERNEL OG last bit\n");
 	return 0;
 
 clean_unregister:
-	printk("mic: CTP IS A KERNEL OG unregisster %d \n", mic_data.dd_numdevs);
 	device_destroy(mic_lindata.dd_class, mic_lindata.dd_dev + 1);
 	device_destroy(mic_lindata.dd_class, mic_lindata.dd_dev);
 	class_destroy(mic_lindata.dd_class);
@@ -665,10 +652,8 @@ clean_unregister:
 	unregister_pm_notifier(&mic_pm_notifer);
 init_free_region:
 	unregister_chrdev_region(mic_lindata.dd_dev, MAX_DLDR_MINORS);
-	printk("mic: CTP IS A KERNEL OG region %d \n", mic_data.dd_numdevs);
 init_free_ports:
 	micpm_uninit();
-	printk("mic: CTP IS A KERNEL OG ports %d \n", mic_data.dd_numdevs);
 	return ret;
 }
 
@@ -749,10 +734,6 @@ mic_get_file_size(const char* fn, uint32_t* file_len)
 	struct file *filp;
 	loff_t filp_size;
 	uint32_t status = 0;
-	mm_segment_t fs = get_fs();
-
-	set_fs(KERNEL_DS);
-
 	if (!fn || IS_ERR(filp = filp_open(fn, 0, 0))) {
 		status = EINVAL;
 		goto cleanup_fs;
@@ -768,7 +749,6 @@ mic_get_file_size(const char* fn, uint32_t* file_len)
 cleanup_filp:
 	filp_close(filp, current->files);
 cleanup_fs:
-	set_fs(fs);
 	return status;
 }
 
@@ -781,9 +761,6 @@ mic_load_file(const char* fn, uint8_t* buffer, uint32_t max_size)
 	struct file *filp;
 	loff_t filp_size, pos = 0;
 
-	mm_segment_t fs = get_fs();
-	set_fs(KERNEL_DS);
-
 	if (!fn || IS_ERR(filp = filp_open(fn, 0, 0))) {
 		status = EINVAL;
 		goto cleanup_fs;
@@ -794,7 +771,7 @@ mic_load_file(const char* fn, uint8_t* buffer, uint32_t max_size)
 		goto cleanup_filp;
 	}
 
-	c = vfs_read(filp, buffer, filp_size, &pos);
+	c = kernel_read(filp, buffer, filp_size, &pos);
 	if(c != (long)filp_size) {
 		status = -1; //FIXME
 		goto cleanup_filp;
@@ -803,7 +780,6 @@ mic_load_file(const char* fn, uint8_t* buffer, uint32_t max_size)
 cleanup_filp:
 	filp_close(filp, current->files);
 cleanup_fs:
-	set_fs(fs);
 
 	return status;
 }

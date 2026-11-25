@@ -61,7 +61,8 @@ void acptboot_getconn(struct work_struct *work)
 	mic_ctx_t *node_ctx;
 	struct scif_portID data;
 	scif_epd_t conn_epd;
-	struct timespec tod;
+	/* sent raw to the card: must stay {s64 tv_sec; long tv_nsec} = 16 bytes */
+	struct timespec64 tod;
 	int proto;
 	int version;
 	int err;
@@ -101,7 +102,8 @@ void acptboot_getconn(struct work_struct *work)
 		break;
 
 	case ACPT_REQUEST_TIME:
-		getnstimeofday(&tod);
+		BUILD_BUG_ON(sizeof(tod) != 16);
+		ktime_get_real_ts64(&tod);
 		proto = ACPT_TIME_DATA;
 		scif_send(conn_epd, &proto, sizeof(proto), SCIF_SEND_BLOCK);
 		scif_send(conn_epd, &tod, sizeof(tod), SCIF_SEND_BLOCK);

@@ -14,6 +14,7 @@
   * (C) Copyright 2012 Intel Corporation
   * Author: Caz Yokoyama <Caz.Yokoyama@intel.com>
   */
+#include <linux/uio.h>
 #include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34) || \
 	defined(RHEL_RELEASE_CODE)
@@ -111,6 +112,29 @@ cleanup_vblk_workqueue(struct vhost_blk_io *vbio, struct vhost_virtqueue *vq)
 		kfree(vbio);
 }
 
+/*
+ * Vectored file I/O on the card's virtual disk.  iov_base already points
+ * at host-kernel mappings of card memory (mic_addr_in_host), so this is a
+ * kernel-vector transfer; it replaces the old set_fs(KERNEL_DS) +
+ * vfs_writev()/vfs_readv() pair.  struct iovec and struct kvec have the
+ * same layout.
+ */
+static ssize_t mic_blk_rw(struct vhost_blk_io *vbio, int dir, loff_t *pos)
+{
+	struct iov_iter iter;
+	size_t total = 0;
+	uint32_t i;
+
+	BUILD_BUG_ON(sizeof(struct iovec) != sizeof(struct kvec));
+	for (i = 0; i < vbio->nvecs; i++)
+		total += vbio->iov[i].iov_len;
+
+	iov_iter_kvec(&iter, dir, (struct kvec *)vbio->iov, vbio->nvecs, total);
+	if (dir == WRITE)
+		return vfs_iter_write(vbio->file, &iter, pos, 0);
+	return vfs_iter_read(vbio->file, &iter, pos, 0);
+}
+
 static void handle_io_work(struct work_struct *work)
 {
 	struct vhost_blk_io *vbio, *entry;
@@ -155,15 +179,12 @@ static void handle_io_work(struct work_struct *work)
 	  for (iov = vbio->iov; iov < &vbio->iov[vbio->nvecs]; iov++) {
 		iov->iov_base = mic_addr_in_host(aper_va, iov->iov_base);
 	  }
-		// OG CTP CHECK BROKEN
-		ret = vfs_write(vbio->file, (char *)vbio->iov, vbio->nvecs, &pos);
-//		ret = vfs_writev(vbio->file, vbio->iov, vbio->nvecs, &pos);
+		ret = mic_blk_rw(vbio, WRITE, &pos);
 	} else {
 	  for (iov = vbio->iov; iov < &vbio->iov[vbio->nvecs]; iov++) {
 		iov->iov_base = mic_addr_in_host(aper_va, iov->iov_base);
 	  }
-		// OG CTP CHECK BROKEN
-		ret = vfs_read(vbio->file, (char *)vbio->iov, vbio->nvecs, &pos);
+		ret = mic_blk_rw(vbio, READ, &pos);
 	}
 	status = (ret < 0) ? VIRTIO_BLK_S_IOERR : VIRTIO_BLK_S_OK;
 	if (vbio->head != -1) {
@@ -481,9 +502,8 @@ static long vhost_blk_set_backend(struct vhost_blk *vblk)
 	writel(SECTOR_SIZE, &vb_shared->blk_config.blk_size);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-	// OG CTP BROKEN LOOK
-	ret = vfs_getattr(&vblk->virtblk_file->f_path, &stat, 0, 0);
-//	ret = vfs_getattr(&vblk->virtblk_file->f_path, &stat);
+	ret = vfs_getattr(&vblk->virtblk_file->f_path, &stat,
+			  STATX_BASIC_STATS, AT_STATX_SYNC_AS_STAT);
 #else
 	ret = vfs_getattr(vblk->virtblk_file->f_path.mnt,
 					  vblk->virtblk_file->f_path.dentry, &stat);
