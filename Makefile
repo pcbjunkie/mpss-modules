@@ -83,8 +83,6 @@ modules modules_install: %:
 
 conf_install:
 ifneq ($(MIC_CARD_ARCH),)
-	$(INSTALL_d) $(DESTDIR)$(sysconfdir)/sysconfig/modules
-	$(INSTALL_x) mic.modules $(DESTDIR)$(sysconfdir)/sysconfig/modules
 	$(INSTALL_d) $(DESTDIR)$(sysconfdir)/modprobe.d
 	$(INSTALL_f) mic.conf $(DESTDIR)$(sysconfdir)/modprobe.d
 endif
