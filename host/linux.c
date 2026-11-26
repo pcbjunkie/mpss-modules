@@ -80,6 +80,11 @@ extern bool mic_watchdog_auto_reboot;
 module_param_named(watchdog_auto_reboot, mic_watchdog_auto_reboot, bool, 0600);
 MODULE_PARM_DESC(watchdog_auto_reboot, "SCIF Watchdog auto reboot");
 
+extern unsigned int mic_shutdown_timeout;
+module_param_named(shutdown_timeout, mic_shutdown_timeout, uint, 0644);
+MODULE_PARM_DESC(shutdown_timeout, "Seconds to wait for card shutdown before "
+		 "resetting it (0 = wait forever, default 120)");
+
 bool mic_msi_enable = 1;
 module_param_named(msi, mic_msi_enable, bool, 0600);
 MODULE_PARM_DESC(mic_msi_enable, "To enable MSIx in the driver.");

@@ -83,6 +83,15 @@ extern int usagemode_param;
 extern bool mic_crash_dump_enabled;
 extern bool mic_watchdog_auto_reboot;
 
+/*
+ * Seconds a card may stay in "shutdown" before the host resets it to
+ * "ready"; 0 waits forever.  A normal uOS shutdown finishes in ~20 s,
+ * but the uOS sometimes stops partway (after its SCIF exit, before the
+ * HALT doorbell), and nothing else recovers it: the SCIF watchdog stops
+ * in this state and mpssd's ShutdownTimeout only applies with --wait.
+ */
+unsigned int mic_shutdown_timeout = 120;
+
 static int64_t etc_comp = 0;
 
 
@@ -968,11 +977,34 @@ adapter_shutdown_device(mic_ctx_t *mic_ctx)
 		 * on the uOS which will initiate orderly shutdown.
 		 */
 		mic_send_sht_intr(mic_ctx);
+		if (mic_shutdown_timeout)
+			mod_delayed_work(system_wq, &mic_ctx->shutdown_timeout_work,
+					 mic_shutdown_timeout * HZ);
 	}
 	mutex_unlock(&mic_ctx->state_lock);
 
 	micpm_put_reference(mic_ctx);
 	return 0;
+}
+
+/* Reset a card whose uOS never finished an orderly shutdown. */
+static void
+shutdown_timeout_work(struct work_struct *work)
+{
+	mic_ctx_t *mic_ctx = container_of(to_delayed_work(work), mic_ctx_t,
+					  shutdown_timeout_work);
+
+	mutex_lock(&mic_ctx->state_lock);
+	if (mic_ctx->state != MIC_SHUTDOWN) {
+		mutex_unlock(&mic_ctx->state_lock);
+		return;
+	}
+	mutex_unlock(&mic_ctx->state_lock);
+
+	printk(KERN_WARNING "mic%d: shutdown did not complete in %u s, resetting\n",
+	       mic_ctx->bi_id, mic_shutdown_timeout);
+	/* Same as writing "reset" to the sysfs state file. */
+	adapter_stop_device(mic_ctx, 1, 0);
 }
 
 int
@@ -1009,6 +1041,7 @@ static void
 destroy_reset_workqueue(mic_ctx_t *mic_ctx)
 {
 	struct workqueue_struct *tempworkq;
+	cancel_delayed_work_sync(&mic_ctx->shutdown_timeout_work);
 	tempworkq = mic_ctx->resetworkq;
 	mic_ctx->resetworkq = NULL;
 	destroy_workqueue(tempworkq);
@@ -1524,6 +1557,7 @@ adapter_init_device(mic_ctx_t *mic_ctx)
 	INIT_WORK(&mic_ctx->ioremapwork, ioremap_work);
 	INIT_WORK(&mic_ctx->boot_ws, post_boot_startup);
 	INIT_WORK(&mic_ctx->resetwork, attempt_reset);
+	INIT_DELAYED_WORK(&mic_ctx->shutdown_timeout_work, shutdown_timeout_work);
 	atomic_set(&mic_ctx->gate_interrupt, 0);
 
 	device_id = mic_ctx->bi_pdev->device;

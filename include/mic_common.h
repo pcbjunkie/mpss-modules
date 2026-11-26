@@ -425,6 +425,7 @@ typedef struct _mic_ctx_t {
 
 	struct workqueue_struct	*resetworkq;
 	struct work_struct		resetwork;
+	struct delayed_work		shutdown_timeout_work;
 	struct workqueue_struct	*ioremapworkq;
 	struct work_struct		ioremapwork;
 	wait_queue_head_t	ioremapwq;
